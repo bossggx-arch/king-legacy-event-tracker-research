@@ -1,0 +1,26 @@
+import { getPrisma } from "@/lib/prisma";
+import { applyApiGuard, jsonOk } from "@/lib/api-utils";
+
+export async function GET(request: Request) {
+  const guard = await applyApiGuard(request, "events-active");
+  if (!guard.allowed) return guard.errorResponse!;
+
+  const prisma = await getPrisma();
+  const detections = await prisma.eventDetection.findMany({
+    where: { status: "ACTIVE" },
+    include: {
+      event: { include: { category: true } },
+      server: true,
+      world: true,
+      source: true,
+    },
+    orderBy: [{ expiresAt: "asc" }, { detectedAt: "desc" }],
+    take: 100,
+  });
+
+  return jsonOk(
+    { data: detections, count: detections.length, serverTimeMs: Date.now() },
+    200,
+    guard.headers
+  );
+}

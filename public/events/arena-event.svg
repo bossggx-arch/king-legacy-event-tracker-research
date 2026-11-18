@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 260">
+  <defs>
+    <radialGradient id="arenaBg" cx="50%" cy="45%" r="65%">
+      <stop offset="0%" stop-color="#eab308" stop-opacity="0.6"/>
+      <stop offset="55%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#070a12"/>
+    </radialGradient>
+  </defs>
+  <rect width="480" height="260" fill="url(#arenaBg)"/>
+  <polygon points="240,42 290,115 240,188 190,115" fill="#ca8a04" opacity="0.35" stroke="#fde047" stroke-width="3"/>
+  <circle cx="240" cy="115" r="46" fill="none" stroke="#fef08a" stroke-width="2" stroke-dasharray="6 4"/>
+  <path d="M120 205 L360 205" stroke="#eab308" stroke-width="3" opacity="0.7"/>
+</svg>

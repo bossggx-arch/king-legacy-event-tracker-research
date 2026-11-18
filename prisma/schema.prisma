@@ -1,0 +1,466 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum WorldCode {
+  FIRST_SEA
+  SECOND_SEA
+  THIRD_SEA
+  UNKNOWN
+}
+
+enum EventType {
+  BOSS
+  SEA_EVENT
+  ISLAND_EVENT
+  SPECIAL_EVENT
+  LIMITED_EVENT
+  SHOP_STOCK
+  UPDATE_EVENT
+}
+
+enum EventStatus {
+  ACTIVE
+  UPCOMING
+  ENDED
+  UNKNOWN
+}
+
+enum VerificationStatus {
+  VERIFIED
+  REPORTED
+  ESTIMATED
+  UNAVAILABLE
+  UNCHECKED
+}
+
+enum ServerStatus {
+  ACTIVE
+  FULL
+  CLOSED
+  UNKNOWN
+}
+
+enum ScanStatus {
+  SCANNED
+  UNSCANNED
+  VERIFIED
+  FAILED
+}
+
+enum ScanType {
+  DISCOVERY
+  STATUS_CHECK
+  EVENT_DETECTION
+}
+
+enum ScanOutcome {
+  SUCCESS
+  FAILED
+  RATE_LIMITED
+}
+
+enum DetectionProviderCode {
+  OFFICIAL_PUBLIC
+  AUTHORIZED_AGENT
+  COMMUNITY_REPORT
+  ADMIN_REPORT
+  EXTERNAL_API
+  TEST_PROVIDER
+}
+
+enum ReportStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationType {
+  NEW_EVENT
+  BOSS_SPAWN
+  SEA_EVENT
+  SERVER_EVENT
+  UPCOMING_EVENT
+  ENDING_SOON
+}
+
+enum NotificationChannel {
+  WEBSITE
+  DISCORD_WEBHOOK
+  DISCORD_BOT
+}
+
+enum ScannerJobType {
+  ROBLOX_DISCOVERY
+  SERVER_HEALTH
+  PROVIDER_POLL
+  EXPIRY_CLEANUP
+}
+
+enum ScannerJobStatus {
+  COMPLETED
+  RUNNING
+  FAILED
+  RETRYING
+}
+
+model User {
+  id                String   @id @default(cuid())
+  username          String   @unique
+  email             String   @unique
+  passwordHash      String
+  role              UserRole @default(USER)
+  avatarUrl         String?
+  discordWebhookUrl String?
+  notifyWorlds      String[] @default(["FIRST_SEA", "SECOND_SEA", "THIRD_SEA"])
+  notifyCategories  String[] @default(["boss", "sea-events", "island-events", "special-events", "limited-events"])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  reportsSubmitted EventReport[] @relation("ReporterRelation")
+  reportsReviewed  EventReport[] @relation("ReviewerRelation")
+  notifications    Notification[]
+  apiKeys          ApiKey[]
+  adminLogs        AdminLog[]
+
+  @@index([role])
+  @@map("Users")
+}
+
+model EventCategory {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?
+  icon        String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  events Event[]
+
+  @@index([sortOrder])
+  @@map("EventCategories")
+}
+
+model ServerWorld {
+  id          String    @id @default(cuid())
+  worldCode   WorldCode @unique
+  name        String
+  placeId     String    @unique
+  universeId  String    @default("1451439645")
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  events          Event[]
+  servers         Server[]
+  serverScans     ServerScan[]
+  eventDetections EventDetection[]
+  eventHistory    EventHistory[]
+  eventReports    EventReport[]
+
+  @@index([placeId])
+  @@map("ServerWorlds")
+}
+
+model Event {
+  id                 String             @id @default(cuid())
+  slug               String             @unique
+  name               String
+  eventType          EventType
+  categoryId         String
+  description        String
+  imageUrl           String
+  spawnLocation      String
+  worldId            String
+  spawnIntervalSec   Int?
+  activeDurationSec  Int?
+  lastSeen           DateTime?
+  nextEstimatedSpawn DateTime?
+  detectionTime      DateTime?
+  currentStatus      EventStatus        @default(UNKNOWN)
+  verificationStatus VerificationStatus @default(UNCHECKED)
+  detectionSource    String             @default("UNKNOWN")
+  confidenceLevel    Float              @default(0)
+  rewards            String?
+  spawnConditions    String?
+  lastUpdated        DateTime           @updatedAt
+  createdAt          DateTime           @default(now())
+
+  category   EventCategory    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  world      ServerWorld      @relation(fields: [worldId], references: [id], onDelete: Restrict)
+  detections EventDetection[]
+  history    EventHistory[]
+  reports    EventReport[]
+  notifications Notification[]
+
+  @@index([categoryId])
+  @@index([worldId])
+  @@index([eventType])
+  @@index([currentStatus])
+  @@map("Events")
+}
+
+model Server {
+  id                 String             @id @default(cuid())
+  jobId              String             @unique
+  placeId            String
+  worldId            String
+  playerCount        Int                @default(0)
+  maxPlayers         Int                @default(12)
+  fps                Float?
+  ping               Int?
+  serverStatus       ServerStatus       @default(ACTIVE)
+  scanStatus         ScanStatus         @default(UNSCANNED)
+  verificationStatus VerificationStatus @default(UNCHECKED)
+  joinUrl            String?
+  firstDiscovered    DateTime           @default(now())
+  lastChecked        DateTime           @default(now())
+  lastUpdated        DateTime           @updatedAt
+
+  world         ServerWorld      @relation(fields: [worldId], references: [id], onDelete: Restrict)
+  scans         ServerScan[]
+  detections    EventDetection[]
+  history       EventHistory[]
+  reports       EventReport[]
+  notifications Notification[]
+
+  @@index([worldId])
+  @@index([placeId])
+  @@index([serverStatus])
+  @@index([scanStatus])
+  @@index([lastChecked])
+  @@map("Servers")
+}
+
+model ServerScan {
+  id               String      @id @default(cuid())
+  serverId         String
+  worldId          String
+  scanType         ScanType
+  status           ScanOutcome
+  playerCount      Int         @default(0)
+  fps              Float?
+  ping             Int?
+  eventsFoundCount Int         @default(0)
+  durationMs       Int         @default(0)
+  source           String
+  errorMessage     String?
+  scannedAt        DateTime    @default(now())
+
+  server Server      @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  world  ServerWorld @relation(fields: [worldId], references: [id], onDelete: Restrict)
+
+  @@index([serverId])
+  @@index([worldId])
+  @@index([scannedAt])
+  @@map("ServerScans")
+}
+
+model DetectionSource {
+  id              String                @id @default(cuid())
+  code            DetectionProviderCode @unique
+  name            String
+  providerType    String
+  description     String
+  isEnabled       Boolean               @default(true)
+  isTestProvider  Boolean               @default(false)
+  trustWeight     Float                 @default(0.5)
+  lastPolledAt    DateTime?
+  totalDetections Int                   @default(0)
+  configJson      String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  detections EventDetection[]
+
+  @@map("DetectionSources")
+}
+
+model EventDetection {
+  id                     String             @id @default(cuid())
+  eventId                String
+  serverId               String
+  worldId                String
+  sourceId               String
+  status                 EventStatus        @default(ACTIVE)
+  verificationStatus     VerificationStatus @default(UNCHECKED)
+  detectedAt             DateTime           @default(now())
+  startedAt              DateTime           @default(now())
+  expiresAt              DateTime?
+  endedAt                DateTime?
+  playerCountAtDetection Int                @default(0)
+  confidenceScore        Float              @default(0.5)
+  evidenceUrl            String?
+  evidenceMetadata       String?
+  isDuplicate            Boolean            @default(false)
+  isTestData             Boolean            @default(false)
+  lastUpdated            DateTime           @updatedAt
+
+  event         Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  server        Server          @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  world         ServerWorld     @relation(fields: [worldId], references: [id], onDelete: Restrict)
+  source        DetectionSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  notifications Notification[]
+
+  @@index([eventId, serverId, status])
+  @@index([status, expiresAt])
+  @@index([worldId])
+  @@index([detectedAt])
+  @@index([verificationStatus])
+  @@map("EventDetections")
+}
+
+model EventHistory {
+  id                 String             @id @default(cuid())
+  eventId            String
+  serverId           String?
+  worldId            String
+  serverJobId        String
+  eventName          String
+  eventCategory      String
+  worldName          String
+  status             EventStatus
+  verificationStatus VerificationStatus
+  detectionSource    String
+  playerCount        Int                @default(0)
+  detectedAt         DateTime
+  endedAt            DateTime?
+  archivalNotes      String?
+  createdAt          DateTime           @default(now())
+
+  event  Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  server Server?     @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  world  ServerWorld @relation(fields: [worldId], references: [id], onDelete: Restrict)
+
+  @@index([eventId])
+  @@index([worldId])
+  @@index([detectedAt])
+  @@map("EventHistory")
+}
+
+model EventReport {
+  id                   String             @id @default(cuid())
+  eventId              String
+  serverId             String?
+  serverJobId          String
+  worldId              String
+  reporterId           String?
+  reporterName         String             @default("Anonymous")
+  status               ReportStatus       @default(PENDING)
+  verificationAssigned VerificationStatus @default(REPORTED)
+  notes                String?
+  evidenceUrl          String?
+  playerCount          Int?
+  reviewedById         String?
+  reviewedAt           DateTime?
+  createdAt            DateTime           @default(now())
+
+  event      Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  server     Server?     @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  world      ServerWorld @relation(fields: [worldId], references: [id], onDelete: Restrict)
+  reporter   User?       @relation("ReporterRelation", fields: [reporterId], references: [id], onDelete: SetNull)
+  reviewedBy User?       @relation("ReviewerRelation", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([eventId])
+  @@index([createdAt])
+  @@map("EventReports")
+}
+
+model Notification {
+  id               String              @id @default(cuid())
+  userId           String?
+  eventId          String?
+  serverId         String?
+  detectionId      String?
+  title            String
+  message          String
+  notificationType NotificationType
+  worldCode        WorldCode?
+  categorySlug     String?
+  channel          NotificationChannel @default(WEBSITE)
+  isRead           Boolean             @default(false)
+  deliveredAt      DateTime?
+  createdAt        DateTime            @default(now())
+
+  user      User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event     Event?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  server    Server?         @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  detection EventDetection? @relation(fields: [detectionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("Notifications")
+}
+
+model ApiKey {
+  id              String    @id @default(cuid())
+  name            String
+  keyHash         String    @unique
+  keyPrefix       String
+  userId          String
+  scopes          String[]  @default(["read:events", "read:servers", "read:scanner"])
+  rateLimitPerMin Int       @default(120)
+  lastUsedAt      DateTime?
+  expiresAt       DateTime?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isActive])
+  @@map("ApiKeys")
+}
+
+model AdminLog {
+  id            String   @id @default(cuid())
+  adminId       String?
+  adminUsername String
+  action        String
+  targetType    String
+  targetId      String?
+  detailsJson   String?
+  ipAddress     String?
+  createdAt     DateTime @default(now())
+
+  admin User? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([action])
+  @@map("AdminLogs")
+}
+
+model ScannerJob {
+  id                  String           @id @default(cuid())
+  jobName             String
+  jobType             ScannerJobType
+  status              ScannerJobStatus @default(RUNNING)
+  serversDiscovered   Int              @default(0)
+  serversUpdated      Int              @default(0)
+  serversClosed       Int              @default(0)
+  detectionsProcessed Int              @default(0)
+  attempt             Int              @default(1)
+  durationMs          Int              @default(0)
+  errorLog            String?
+  startedAt           DateTime         @default(now())
+  finishedAt          DateTime?
+
+  @@index([jobType, startedAt])
+  @@index([status])
+  @@map("ScannerJobs")
+}

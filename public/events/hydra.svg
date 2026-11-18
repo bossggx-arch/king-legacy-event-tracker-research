@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 260">
+  <defs>
+    <radialGradient id="hydraBg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity="0.7"/>
+      <stop offset="55%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#050814"/>
+    </radialGradient>
+  </defs>
+  <rect width="480" height="260" fill="url(#hydraBg)"/>
+  <circle cx="240" cy="115" r="85" fill="#c084fc" opacity="0.18"/>
+  <path d="M150 200 C130 130, 145 75, 175 65 C195 60, 195 95, 178 108 L188 200 Z" fill="#7e22ce" stroke="#e9d5ff" stroke-width="2"/>
+  <path d="M225 205 C220 110, 225 45, 245 40 C268 38, 270 80, 255 95 L260 205 Z" fill="#9333ea" stroke="#f3e8ff" stroke-width="2"/>
+  <path d="M295 200 C315 130, 320 80, 295 68 C275 62, 272 95, 286 110 L275 200 Z" fill="#6b21a8" stroke="#e9d5ff" stroke-width="2"/>
+  <circle cx="176" cy="80" r="4" fill="#fde047"/>
+  <circle cx="248" cy="60" r="4.5" fill="#fde047"/>
+  <circle cx="294" cy="82" r="4" fill="#fde047"/>
+  <path d="M90 210 Q240 185 390 210" stroke="#c084fc" stroke-width="3" fill="none" opacity="0.6"/>
+</svg>

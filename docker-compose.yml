@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kinglegacy
+      POSTGRES_PASSWORD: kinglegacy_pass
+      POSTGRES_DB: kinglegacy_tracker
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kinglegacy -d kinglegacy_tracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://kinglegacy:kinglegacy_pass@postgres:5432/kinglegacy_tracker?schema=public
+      USE_EXTERNAL_POSTGRES: "true"
+      REDIS_URL: redis://redis:6379
+      USE_BULLMQ_REDIS: "true"
+      JWT_SECRET: ${JWT_SECRET:-change-this-jwt-secret-in-production}
+      AGENT_INGEST_SECRET: ${AGENT_INGEST_SECRET:-change-this-agent-secret-in-production}
+      SCANNER_ENABLED: "false"
+      ALLOW_INSECURE_COOKIE: "true"
+      NEXT_PUBLIC_APP_URL: http://localhost
+    ports:
+      - "3000:3000"
+
+  worker:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://kinglegacy:kinglegacy_pass@postgres:5432/kinglegacy_tracker?schema=public
+      USE_EXTERNAL_POSTGRES: "true"
+      REDIS_URL: redis://redis:6379
+      USE_BULLMQ_REDIS: "true"
+      SCANNER_ENABLED: "true"
+      SCANNER_INTERVAL_MS: "45000"
+      ROBLOX_API_MAX_PAGES_PER_SEA: "3"
+    command: ["node", "--experimental-strip-types", "src/worker/index.ts"]
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  pg_data:
+  redis_data:
